@@ -1,0 +1,332 @@
+direction: down
+
+title: {
+  shape: text
+  near: top-center
+  style.bold: true
+  style.font-size: 30
+  label: "finetune_simple.py 训练流程与数据形状流"
+}
+
+overview: {
+  label: "A. 训练主流程（宏观）"
+  style.fill: "#E3F2FD"
+  style.stroke: "#1E88E5"
+  style.font-size: 20
+  style.bold: true
+
+  cfg: {
+    shape: document
+    style.fill: "#FFFFFF"
+    label: |md
+      **配置输入 (`FinetuneConfig`)**
+      - 模型: `vla_path`
+      - 数据: `data_root_dir`, `dataset_name`
+      - 训练: `batch_size`, `lr`, `max_steps`
+      - 开关: `use_proprio`, `use_film`, `use_val_set`
+    |
+  }
+
+  init_model: {
+    shape: rectangle
+    style.fill: "#FFFFFF"
+    label: |md
+      **模型初始化**
+      1. 加载 `AutoProcessor` + `AutoModelForVision2Seq`
+      2. 注入 LoRA (`get_peft_model`)
+      3. 可选 FiLM / proprio projector
+      4. VLA 用 FSDP 包装，动作头用 DDP/Identity 包装
+    |
+  }
+
+  init_data: {
+    shape: rectangle
+    style.fill: "#FFFFFF"
+    label: |md
+      **数据初始化**
+      1. `RLDSDataset` + `RLDSBatchTransform`
+      2. `PaddedCollatorForActionPrediction`
+      3. `DataLoader` 产出 `batch` 字典
+    |
+  }
+
+  loop: {
+    shape: rectangle
+    style.fill: "#FFFFFF"
+    label: |md
+      **训练循环**
+      - `run_forward_pass(batch) -> loss`
+      - `loss / grad_accumulation_steps`
+      - `backward -> optimizer.step -> scheduler.step`
+      - 记录 `train/loss`, `train/lr`
+    |
+  }
+
+  eval_save: {
+    shape: rectangle
+    style.fill: "#FFFFFF"
+    label: |md
+      **验证与保存**
+      - 验证: 统计 `val/loss` 平均值
+      - 保存: processor + LoRA adapter + action_head +
+        optimizer/scheduler 状态
+    |
+  }
+}
+
+data_overview: {
+  label: "B. 数据管线与模型输入格式"
+  style.fill: "#F3E5F5"
+  style.stroke: "#8E24AA"
+  style.font-size: 20
+  style.bold: true
+
+  raw: {
+    shape: document
+    style.fill: "#FFFFFF"
+    label: |md
+      **RLDS 原始样本**
+      - 图像 (RGB)
+      - 语言指令 (str)
+      - 当前动作 `[ACTION_DIM]`
+      - 未来动作 `[CHUNK-1, ACTION_DIM]`
+      - 本体状态 (可选)
+    |
+  }
+
+  pipeline: {
+    shape: hexagon
+    style.fill: "#FFFFFF"
+    label: |md
+      **数据管线（黑箱）**
+      `ActionTokenizer` → `PurePromptBuilder`
+      → `Tokenizer` → `PaddedCollator`
+    |
+  }
+
+  batch: {
+    shape: document
+    style.fill: "#FFF9C4"
+    label: |md
+      **batch 字典 (DataLoader 输出)**
+      - `input_ids`: `[B, T]`
+      - `attention_mask`: `[B, T]`
+      - `labels`: `[B, T]`
+      - `pixel_values`: `[B, N_img*C, H, W]`
+      - `actions`: `[B, CHUNK, ACTION_DIM]` — 连续动作真值
+      - `proprio`(可选): `[B, PROPRIO_DIM]`
+    |
+  }
+
+  input_ids_fmt: {
+    shape: document
+    style.fill: "#E8F5E9"
+    label: |md
+      **input_ids — shape: `[B, 1+L+K+1+P]`**
+      ```
+      [BOS]  In:What...?\nOut:▁  A₁ A₂...A_K  </s>  [PAD...]
+        1           L              K           1       P
+      ```
+      - `L`: prompt 文本 token 数（含末尾 `▁`）
+      - `K = ACTION_DIM × CHUNK`: 动作 bin token 数
+      - `P`: 右侧 padding 数
+      - `T = 1+L+K+1+P`（padding 后总长）
+    |
+  }
+
+  labels_fmt: {
+    shape: document
+    style.fill: "#E8F5E9"
+    label: |md
+      **labels — shape: `[B, 1+L+K+1+P]`（与 input_ids 等长）**
+      ```
+      [-100 × (1+L)]  [A₁ A₂...A_K]  [</s>]  [-100 × P]
+       ← 不算 loss →  ← 有监督信号 →   stop     PAD
+      ```
+      - 前 `1+L` 位（BOS+prompt）置为 -100，不计算损失
+      - 中间 `K+1` 位（动作 + EOS）保留真实 token id
+      - 末尾 `P` 位 padding 也置为 -100
+    |
+  }
+
+  embed_fmt: {
+    shape: document
+    style.fill: "#E8F5E9"
+    label: |md
+      **embedding — shape: `[B, 1+V+L+K+1+P, D]`**
+      ```
+      [BOS]  [Vis₁..Vis_N Proprio?]  In:..▁   [000]   </s>  [PAD]
+        1           V                  L        K       1      P
+      ```
+      - `1`: BOS embedding
+      - `V = NUM_PATCHES`: 视觉 token（含可选 proprio）
+      - `L`: prompt 文本 embedding（与 input_ids 的 L 相同）
+      - `K`: **动作位 embedding 被清零**（OFT 核心）
+        只保留位置编码，使 LLM 并行输出
+      - 对比 input_ids: 多出 `V` 个视觉 token
+    |
+  }
+
+  raw -> pipeline -> batch
+  batch -> input_ids_fmt
+  batch -> labels_fmt
+  input_ids_fmt -> embed_fmt: "forward() 内组装"
+  labels_fmt -> embed_fmt
+}
+
+dataflow: {
+  label: "C. 单步前向数据流（重点：shape 与含义）"
+  style.fill: "#FFF3E0"
+  style.stroke: "#FB8C00"
+  style.font-size: 20
+  style.bold: true
+
+  batch_dict: {
+    shape: document
+    style.fill: "#FFFFFF"
+    label: |md
+      **输入 `batch` (dict)**
+      - `input_ids`: `[B, T]`，文本 token id
+      - `attention_mask`: `[B, T]`，有效位/填充位掩码
+      - `labels`: `[B, T]`，语言模型监督标签
+      - `pixel_values`: `[B, N_img, C, H, W]` 或 `[B, C, H, W]`，图像
+      - `actions`: `[B, NUM_ACTIONS_CHUNK, ACTION_DIM]`，连续动作真值
+      - `proprio`(可选): `[B, PROPRIO_DIM]`，机器人本体状态
+    |
+  }
+
+  vla_forward: {
+    shape: rectangle
+    style.fill: "#FFFFFF"
+    label: |md
+      **VLA 前向**
+      - 输入: `input_ids`, `attention_mask`, `pixel_values`, `labels`,
+        可选 `proprio`
+      - 输出: `hidden_states[-1] = last_hidden_states`
+      - shape: `[B, seq_len, D]`
+    |
+  }
+
+  token_align: {
+    shape: rectangle
+    style.fill: "#FFFFFF"
+    label: |md
+      **标签与序列对齐**
+      - `ground_truth_token_ids = labels[:, 1:]` -> `[B, T-1]`
+      - `text_hidden_states = last_hidden_states[:, num_patches:-1]`
+      - `text_hidden_states` shape: `[B, T-1, D]`
+      - 说明: 去掉前缀视觉/可选 proprio token + 最后一个无监督位置
+    |
+  }
+
+  masks: {
+    shape: rectangle
+    style.fill: "#FFFFFF"
+    label: |md
+      **动作位置掩码**
+      - `current_action_mask = get_current_action_mask(...)`
+      - `next_actions_mask = get_next_actions_mask(...)`
+      - 两者 shape 都是 `[B, T-1]` (bool)
+      - 语义: 标记动作 token 所在位置（当前步 + 后续步）
+    |
+  }
+
+  gather_reshape: {
+    shape: rectangle
+    style.fill: "#FFFFFF"
+    label: |md
+      **抽取动作隐向量并 reshape**
+      - 布尔索引:
+        `text_hidden_states[ current_action_mask OR next_actions_mask ]`
+        -> `[B*K, D]`
+      - 其中 `K = NUM_ACTIONS_CHUNK * ACTION_DIM`
+      - reshape:
+        `actions_hidden_states` -> `[B, K, D]`
+    |
+  }
+
+  action_head: {
+    shape: rectangle
+    style.fill: "#FFFFFF"
+    label: |md
+      **动作头回归 (`L1RegressionActionHead`)**
+      - 输入: `actions_hidden_states` `[B, K, D]`
+      - 输出: `predicted_actions`
+      - shape: `[B, NUM_ACTIONS_CHUNK, ACTION_DIM]`
+      - 含义: 每个样本预测一个动作 chunk 的连续控制量
+    |
+  }
+
+  loss_node: {
+    shape: rectangle
+    style.fill: "#FFFFFF"
+    label: |md
+      **损失计算**
+      - 真值: `ground_truth_actions = batch["actions"]`
+      - shape: `[B, NUM_ACTIONS_CHUNK, ACTION_DIM]`
+      - 损失: `L1Loss(ground_truth_actions, predicted_actions)`
+      - 输出: `loss`(Tensor 标量), `loss_value`(float)
+    |
+  }
+
+  backprop: {
+    shape: rectangle
+    style.fill: "#FFFFFF"
+    label: |md
+      **反向传播与更新**
+      - `normalized_loss = loss / grad_accumulation_steps`
+      - `normalized_loss.backward()`
+      - 累积到指定步数后:
+        `optimizer.step()`, `scheduler.step()`, `optimizer.zero_grad()`
+    |
+  }
+}
+
+output_nodes: {
+  label: "D. 训练产物"
+  style.fill: "#E8F5E9"
+  style.stroke: "#43A047"
+  style.font-size: 20
+  style.bold: true
+
+  logs: {
+    shape: document
+    style.fill: "#FFFFFF"
+    label: |md
+      **TensorBoard**
+      - `train/loss`
+      - `train/lr`
+      - `val/loss` (启用验证时)
+    |
+  }
+
+  ckpt: {
+    shape: document
+    style.fill: "#FFFFFF"
+    label: |md
+      **Checkpoint**
+      - processor 配置
+      - LoRA adapter 权重
+      - `action_head` 权重
+      - `training_state_rank*.pt`
+        (optimizer + scheduler)
+    |
+  }
+}
+
+# === 主流程连线 ===
+title -> overview.cfg
+overview.cfg -> overview.init_model -> overview.init_data -> overview.loop -> overview.eval_save
+
+# === 数据管线连线 ===
+overview.init_data -> data_overview.raw: "每个样本"
+
+# === 前向数据流连线 ===
+data_overview.batch -> dataflow.batch_dict: "每个 iteration 进入前向"
+dataflow.batch_dict -> dataflow.vla_forward -> dataflow.token_align -> dataflow.masks
+dataflow.masks -> dataflow.gather_reshape -> dataflow.action_head -> dataflow.loss_node -> dataflow.backprop
+
+# === 输出连线 ===
+overview.eval_save -> output_nodes.logs
+overview.eval_save -> output_nodes.ckpt
+dataflow.loss_node -> output_nodes.logs: "loss 写日志"

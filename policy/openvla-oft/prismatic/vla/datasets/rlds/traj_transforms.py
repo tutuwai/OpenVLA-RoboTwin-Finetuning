@@ -24,7 +24,9 @@ def chunk_act_obs(traj: Dict, window_size: int, future_action_window_size: int =
     """
     traj_len = tf.shape(traj["action"])[0]
     action_dim = traj["action"].shape[-1]
-    effective_traj_len = traj_len - future_action_window_size
+    # 2026.02.24 修复末端能力不足问题 by haiwai
+    # effective_traj_len = traj_len - future_action_window_size
+    effective_traj_len = traj_len
     chunk_indices = tf.broadcast_to(tf.range(-window_size + 1, 1), [effective_traj_len, window_size]) + tf.broadcast_to(
         tf.range(effective_traj_len)[:, None], [effective_traj_len, window_size]
     )
