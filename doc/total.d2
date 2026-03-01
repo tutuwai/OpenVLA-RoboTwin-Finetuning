@@ -1,0 +1,385 @@
+direction: down
+
+title: {
+  label: |md
+    # OpenVLA-OFT on RoboTwin 训练全流程
+  |
+  near: top-center
+  shape: text
+  style.font-size: 28
+  style.bold: true
+}
+
+# ============================================================
+# 步骤 2：数据采集
+# ============================================================
+
+step2: {
+  label: "步骤 2：数据采集"
+  style.font-size: 20
+  style.bold: true
+  style.fill: "#E3F2FD"
+  style.border-radius: 8
+
+  cmd: {
+    label: |md
+      ```bash
+      bash collect_data.sh \
+        beat_block_hammer \
+        demo_clean 0
+      ```
+    |
+    shape: page
+    style.fill: "#FAFAFA"
+  }
+
+  output: {
+    label: |md
+      - data/beat_block_hammer/
+      - demo_clean/
+    |
+    shape: package
+    style.fill: "#BBDEFB"
+
+    hdf5: {
+      label: |md
+        **data/*.hdf5** (×50 episodes)
+        - endpose/
+          - 左右臂末端位姿 7D
+        - joint_action/vector
+          - 14D 关节动作
+        - observation/
+          - 4 相机 JPEG + 内外参
+        - pointcloud
+      |
+      shape: document
+      style.fill: "#E8F5E9"
+    }
+
+    instructions: {
+      label: |md
+        **instructions/*.json**
+        - seen: 100 条训练指令
+        - unseen: 100 条测试指令
+      |
+      shape: document
+      style.fill: "#FFF3E0"
+    }
+
+    video: {
+      label: |md
+        **video/*.mp4**
+        - 头部相机回放视频
+      |
+      shape: document
+      style.fill: "#F3E5F5"
+    }
+
+    aux: {
+      label: |md
+        **辅助文件**
+        - scene_info.json
+        - seed.txt
+        - _traj_data/
+      |
+      shape: document
+      style.fill: "#ECEFF1"
+    }
+  }
+
+  cmd -> output: 生成
+}
+
+# ============================================================
+# 步骤 3：预处理 → ALOHA 格式
+# ============================================================
+
+step3: {
+  label: "步骤 3：预处理为 ALOHA 格式"
+  style.font-size: 20
+  style.bold: true
+  style.fill: "#FFF8E1"
+  style.border-radius: 8
+
+  script: {
+    label: "preprocess_aloha.py"
+    shape: hexagon
+    style.fill: "#FFE082"
+  }
+
+  process: {
+    label: |md
+      **处理逻辑：**
+      1. 解码 4 相机 JPEG
+         - resize 至 256×256
+      2. 相机映射：
+         - head → head_camera
+         - left → left_wrist
+         - right → right_wrist
+         - front → low_cam
+      3. 计算 relative_action
+         - 相邻帧差分
+      4. 写入 seen/unseen 指令列表
+      5. 随机划分
+         - train 95% / val 5%
+         - 最多 100 episodes
+    |
+    shape: rectangle
+    style.fill: "#FFFDE7"
+    style.border-radius: 5
+  }
+
+  output: {
+    label: "processed_openvla/"
+    shape: package
+    style.fill: "#FFF9C4"
+
+    train: {
+      label: |md
+        **train/*.hdf5**（≈47 episodes）
+        - head_camera_image
+        - left_wrist_image
+        - right_wrist_image
+        - low_cam_image
+        - 均为 (T, 256, 256, 3)
+        - action (T, 14)
+        - relative_action (T, 14)
+        - seen[] / unseen[]
+      |
+      shape: document
+      style.fill: "#C8E6C9"
+    }
+
+    val: {
+      label: |md
+        **val/*.hdf5**（≈3 episodes）
+        - 结构同 train
+      |
+      shape: document
+      style.fill: "#FFCDD2"
+    }
+  }
+
+  script -> process -> output
+}
+
+# ============================================================
+# 步骤 4：构建 RLDS 数据集
+# ============================================================
+
+step4: {
+  label: |md
+    **步骤 4：构建 RLDS 数据集**
+  |
+  style.font-size: 20
+  style.bold: true
+  style.fill: "#E8F5E9"
+  style.border-radius: 8
+
+  builder: {
+    label: |md
+      **dataset builder**
+      - 复制 move_can_pot_builder.py
+      - 作为模板
+      - 修改类名
+      - 修改 _split_paths() 路径
+      - 运行：
+        ```
+        python -m datasets.xxx
+        ```
+    |
+    shape: hexagon
+    style.fill: "#A5D6A7"
+  }
+
+  register: {
+    label: |md
+      **注册数据集（3 个文件）**
+      - **configs.py**
+        - 相机/状态/动作配置
+      - **transforms.py**
+        - 数据变换函数
+      - **mixtures.py**
+        - 数据集混合权重
+    |
+    shape: rectangle
+    style.fill: "#C8E6C9"
+    style.border-radius: 5
+  }
+
+  output: {
+    label: |md
+      **输出目录**
+      - ~/tensorflow_datasets/
+      - aloha_beat_block_hammer/
+      - TFRecord 格式
+    |
+    shape: cylinder
+    style.fill: "#81C784"
+  }
+
+  builder -> output: 转换
+  register -> output: 配置 {style.stroke-dash: 5}
+}
+
+# ============================================================
+# 步骤 5：LoRA 微调
+# ============================================================
+
+step5: {
+  label: "步骤 5：LoRA 微调 OpenVLA-7B"
+  style.font-size: 20
+  style.bold: true
+  style.fill: "#F3E5F5"
+  style.border-radius: 8
+
+  base_model: {
+    label: |md
+      **OpenVLA-7B**
+      - 预训练基座模型
+    |
+    shape: cylinder
+    style.fill: "#CE93D8"
+  }
+
+  train_cmd: {
+    label: |md
+      **torchrun finetune.py**
+      - LoRA rank = 32
+      - global batch ≥ 16
+      - learning_rate = 5e-4
+      - max_steps = 100005
+      - 3 张图输入
+      - 本体感觉 (proprio)
+      - L1 regression
+      - FiLM conditioning
+    |
+    shape: hexagon
+    style.fill: "#E1BEE7"
+  }
+
+  checkpoint: {
+    label: |md
+      **LoRA checkpoint**
+      - 每 5000 步保存
+      - 未合并的增量权重
+    |
+    shape: document
+    style.fill: "#F8BBD0"
+  }
+
+  base_model -> train_cmd: 加载
+  train_cmd -> checkpoint: 保存
+}
+
+# ============================================================
+# 步骤 6：合并权重
+# ============================================================
+
+step6: {
+  label: "步骤 6：合并 LoRA 权重"
+  style.font-size: 20
+  style.bold: true
+  style.fill: "#FCE4EC"
+  style.border-radius: 8
+
+  merge: {
+    label: |md
+      **merge_lora_weights**
+      **_and_save.py**
+      - base_checkpoint
+      - \+ lora_checkpoint
+      - → 合并为完整模型
+      - 缺 .py 文件需从原始 ckpt 复制
+    |
+    shape: hexagon
+    style.fill: "#F48FB1"
+  }
+
+  merged_ckpt: {
+    label: |md
+      **合并后 checkpoint**
+      - 可直接用于部署
+      - 可直接用于评测
+    |
+    shape: document
+    style.fill: "#EF9A9A"
+  }
+
+  merge -> merged_ckpt
+}
+
+# ============================================================
+# 步骤 7：评测
+# ============================================================
+
+step7: {
+  label: "步骤 7：RoboTwin 仿真评测"
+  style.font-size: 20
+  style.bold: true
+  style.fill: "#E0F2F1"
+  style.border-radius: 8
+
+  eval_cmd: {
+    label: |md
+      ```bash
+      bash eval.sh \
+        beat_block_hammer \
+        demo_clean \
+        merged_ckpt_path \
+        0 0 \
+        aloha_beat_block_hammer
+      ```
+    |
+    shape: page
+    style.fill: "#FAFAFA"
+  }
+
+  result: {
+    label: |md
+      **eval_result/**
+      - 评测成功率
+      - 回放视频
+    |
+    shape: document
+    style.fill: "#80CBC4"
+  }
+
+  eval_cmd -> result: 输出
+}
+
+# ============================================================
+# 主流程连接
+# ============================================================
+
+step2 -> step3: |md
+  - 原始 HDF5
+  - instructions
+| {
+  style.stroke: "#1565C0"
+  style.stroke-width: 3
+  style.font-size: 14
+}
+step3 -> step4: |md
+  - 预处理后 HDF5
+  - train / val
+| {
+  style.stroke: "#F9A825"
+  style.stroke-width: 3
+  style.font-size: 14
+}
+step4 -> step5: "RLDS TFRecord" {
+  style.stroke: "#2E7D32"
+  style.stroke-width: 3
+  style.font-size: 14
+}
+step5 -> step6: "LoRA 增量权重" {
+  style.stroke: "#7B1FA2"
+  style.stroke-width: 3
+  style.font-size: 14
+}
+step6 -> step7: "合并后 checkpoint" {
+  style.stroke: "#C62828"
+  style.stroke-width: 3
+  style.font-size: 14
+}
