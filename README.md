@@ -1,175 +1,187 @@
-<h1 align="center">
-  <a href="https://robotwin-benchmark.github.io"><b>RoboTwin</b> Bimanual Robotic Manipulation Platform<br></a>
-</h1>
-<h2 align="center">Lastest Version: RoboTwin 2.0<br>🤲 <a href="https://robotwin-platform.github.io/">Webpage</a> | <a href="https://robotwin-platform.github.io/doc/">Document</a> | <a href="https://arxiv.org/abs/2506.18088">Paper</a> | <a href="https://robotwin-platform.github.io/doc/community/index.html">Community</a> | <a href="https://robotwin-platform.github.io/leaderboard">Leaderboard</a></h2>
+# OpenVLA-RoboTwin-Finetuning
 
-https://private-user-images.githubusercontent.com/88101805/463126988-e3ba1575-4411-4a36-ad65-f0b2f49890c3.mp4
+基于 RoboTwin 仿真平台和 OpenVLA-oft 的双臂机器人端到端控制微调实践仓库。  
+仓库重点覆盖完整工程链路：数据采集、数据转换、RLDS 构建、分布式训练、LoRA 合并与评测。
 
-**[2.0 Version (lastest)]** RoboTwin 2.0: A Scalable Data Generator and Benchmark with Strong Domain Randomization for Robust Bimanual Robotic Manipulation<br>
-<i>Under Review 2025</i>: [Webpage](https://robotwin-platform.github.io/) | [Document](https://robotwin-platform.github.io/doc) | [PDF](https://arxiv.org/pdf/2506.18088) | [arXiv](https://arxiv.org/abs/2506.18088) | [Talk (in Chinese)](https://www.bilibili.com/video/BV18p3izYE63/?spm_id_from=333.337.search-card.all.click) | [机器之心](https://mp.weixin.qq.com/s/SwORezmol2Qd9YdrGYchEA) | [Leaderboard](https://robotwin-platform.github.io/leaderboard)<br>
-> <a href="https://tianxingchen.github.io/">Tianxing Chen</a><sup>\*</sup>, Zanxin Chen<sup>\*</sup>, Baijun Chen<sup>\*</sup>, Zijian Cai<sup>\*</sup>, <a href="https://10-oasis-01.github.io">Yibin Liu</a><sup>\*</sup>, <a href="https://kolakivy.github.io/">Qiwei Liang</a>, Zixuan Li, Xianliang Lin, <a href="https://geyiheng.github.io">Yiheng Ge</a>, Zhenyu Gu, Weiliang Deng, Yubin Guo, Tian Nian, Xuanbing Xie, <a href="https://www.linkedin.com/in/yusen-qin-5b23345b/">Qiangyu Chen</a>, Kailun Su, Tianling Xu, <a href="http://luoping.me/">Guodong Liu</a>, <a href="https://aaron617.github.io/">Mengkang Hu</a>, <a href="https://c7w.tech/about">Huan-ang Gao</a>, Kaixuan Wang, <a href="https://liang-zx.github.io/">Zhixuan Liang</a>, <a href="https://www.linkedin.com/in/yusen-qin-5b23345b/">Yusen Qin</a>, Xiaokang Yang, <a href="http://luoping.me/">Ping Luo</a><sup>†</sup>, <a href="https://yaomarkmu.github.io/">Yao Mu</a><sup>†</sup>
+## 一句话介绍（简历可用）
 
-**[RoboTwin Dual-Arm Collaboration Challenge@CVPR'25 MEIS Workshop]** RoboTwin Dual-Arm Collaboration Challenge Technical Report at CVPR 2025 MEIS Workshop<br>
-Official Technical Report: [PDF](https://arxiv.org/pdf/2506.23351) | [arXiv](https://arxiv.org/abs/2506.23351) | [量子位](https://mp.weixin.qq.com/s/qxqs9vvvHsAJ-0hoYANYzQ)<br>
+在 RoboTwin 仿真环境中复现并工程化 OpenVLA-oft 微调流程，完成从专家数据采集到 7B VLA 分布式训练与评测闭环，并针对末端 action-chunk 数据缺失问题做数据管线修复。
 
-**[1.0 Version]** RoboTwin: Dual-Arm Robot Benchmark with Generative Digital Twins<br>
-Accepted to <i style="color: red; display: inline;"><b>CVPR 2025 (Highlight)</b></i>: [PDF](https://arxiv.org/pdf/2504.13059) | [arXiv](https://arxiv.org/abs/2504.13059)<br>
-> <a href="https://yaomarkmu.github.io/">Yao Mu</a><sup>* †</sup>, <a href="https://tianxingchen.github.io">Tianxing Chen</a><sup>* </sup>, Zanxin Chen<sup>* </sup>, <a href="https://shijiapeng03.github.io">Shijia Peng</a><sup>* </sup>, Zhiqian Lan, Zeyu Gao, Zhixuan Liang, Qiaojun Yu, Yude Zou, Mingkun Xu, Lunkai Lin, Zhiqiang Xie, Mingyu Ding, <a href="http://luoping.me/">Ping Luo</a><sup>†</sup>.
+## 项目亮点
 
-**[Early Version]** RoboTwin: Dual-Arm Robot Benchmark with Generative Digital Twins (early version)<br>
-Accepted to <i style="color: red; display: inline;"><b>ECCV Workshop 2024 (Best Paper Award)</b></i>: [PDF](https://arxiv.org/pdf/2409.02920) | [arXiv](https://arxiv.org/abs/2409.02920)<br>
-> <a href="https://yaomarkmu.github.io/">Yao Mu</a><sup>* †</sup>, <a href="https://tianxingchen.github.io">Tianxing Chen</a><sup>* </sup>, Shijia Peng<sup>*</sup>, Zanxin Chen<sup>*</sup>, Zeyu Gao, Zhiqian Lan, Yude Zou, Lunkai Lin, Zhiqiang Xie, <a href="http://luoping.me/">Ping Luo</a><sup>†</sup>.
+- **端到端工程闭环**：数据采集 -> 数据转换 -> RLDS 构建 -> 分布式训练 -> LoRA 合并 -> 仿真评测。
+- **大模型训练工程**：围绕 7B VLA 的显存瓶颈，采用 LoRA + 多卡 FSDP 训练方案。
+- **多模态输入适配**：支持多视角图像与 proprio 输入接入 OpenVLA-oft。
+- **数据质量修复**：修复轨迹末尾样本被裁剪问题，提升末段状态学习覆盖度。
+- **可解释文档化**：提供流程图与 shape 流图（`doc/*.d2`），便于复现和面试讲解。
 
+## 技术栈
 
+- 仿真与数据：RoboTwin、HDF5、RLDS、TensorFlow Data pipeline
+- 训练与模型：PyTorch、Transformers、PEFT(LoRA)、FSDP、FlashAttention
+- 工程与实验：Shell、Conda、ModelScope、TensorBoard
 
-# 📚 Overview
+## 项目内容
 
-| Branch Name | Link |
-|-------------|------|
-| 2.0 Version Branch | [main](https://github.com/RoboTwin-Platform/RoboTwin/tree/main) (latest) |
-| IsaacLab-Arena Branch | [IsaacLab-Arena](https://github.com/RoboTwin-Platform/RoboTwin/tree/IsaacLab-Arena) |
-| RLinf Branch | [RLinf_support](https://github.com/RoboTwin-Platform/RoboTwin/tree/RLinf_support) |
-| WBCD 2026 Branch | [WBCD-2026](https://github.com/RoboTwin-Platform/RoboTwin/tree/WBCD-2026) |
-| 1.0 Version Branch | [1.0 Version](https://github.com/RoboTwin-Platform/RoboTwin/tree/RoboTwin-1.0) |
-| 1.0 Version Code Generation Branch | [1.0 Version GPT](https://github.com/RoboTwin-Platform/RoboTwin/tree/gpt) |
-| Early Version Branch | [Early Version](https://github.com/RoboTwin-Platform/RoboTwin/tree/early_version) |
-| 第十九届“挑战杯”人工智能专项赛分支 | [Challenge-Cup-2025](https://github.com/RoboTwin-Platform/RoboTwin/tree/Challenge-Cup-2025) |
-| CVPR 2025 Challenge Round 1 Branch | [CVPR-Challenge-2025-Round1](https://github.com/RoboTwin-Platform/RoboTwin/tree/CVPR-Challenge-2025-Round1) |
-| CVPR 2025 Challenge Round 2 Branch | [CVPR-Challenge-2025-Round2](https://github.com/RoboTwin-Platform/RoboTwin/tree/CVPR-Challenge-2025-Round2) |
+- OpenVLA-oft 微调流程实现（含 LoRA、多视角图像与 proprio 输入）。
+- RoboTwin 专家策略数据采集与预处理。
+- RoboTwin 原始数据到 OpenVLA 训练所需 RLDS 格式转换。
+- 单机多卡训练（推荐 FSDP）与评测脚本。
+- 训练流程图与数据形状流图（`doc/*.d2`）。
 
+## 目录概览
 
-
-# 🐣 Update
-* **2026/02/20**, Usage supported in <a href="https://github.com/starVLA/starVLA">StarVLA</a>, which is a user-friendly codebase for VLA development.
-* **2026/01/23**, We update IsaacLab-Arena and <a href="https://github.com/RLinf/RLinf">RLinf</a> support (contributed by RLinf team).
-* **2025/08/28**, We update the RoboTwin 2.0 Paper [PDF](https://arxiv.org/pdf/2506.18088).
-* **2025/08/25**, We fix ACT deployment code and update the [leaderboard](https://robotwin-platform.github.io/leaderboard).
-* **2025/08/06**, We release RoboTwin 2.0 Leaderboard: [leaderboard website](https://robotwin-platform.github.io/leaderboard).
-* **2025/07/23**, RoboTwin 2.0 received Outstanding Poster at ChinaSI 2025 (Ranking 1st).
-* **2025/07/19**, We Fix DP3 evaluation code error. We will update RoboTwin 2.0 paper next week.
-* **2025/07/09**, We update endpose control mode, please see [[RoboTwin Doc - Usage - Control Robot](https://robotwin-platform.github.io/doc/usage/control-robot.html)] for more details.
-* **2025/07/08**, We upload [Challenge-Cup-2025](https://github.com/RoboTwin-Platform/RoboTwin/tree/Challenge-Cup-2025) Branch (第十九届挑战杯分支).
-* **2025/07/02**, Fix Piper Wrist Bug [[issue](https://github.com/RoboTwin-Platform/RoboTwin/issues/104)]. Please redownload the embodiment asset.
-* **2025/07/01**, We release Technical Report of RoboTwin Dual-Arm Collaboration Challenge @ CVPR 2025 MEIS Workshop [[arXiv](https://arxiv.org/abs/2506.23351)] !
-* **2025/06/21**, We release RoboTwin 2.0 [[Webpage](https://robotwin-platform.github.io/)] !
-* **2025/04/11**, RoboTwin is seclected as <i>CVPR Highlight paper</i>!
-* **2025/02/27**, RoboTwin is accepted to <i>CVPR 2025</i> ! 
-* **2024/09/30**, RoboTwin (Early Version) received <i>the Best Paper Award  at the ECCV Workshop</i>!
-* **2024/09/20**, Officially released RoboTwin.
-
-# 🛠️ Installation
-
-See [RoboTwin 2.0 Document (Usage - Install & Download)](https://robotwin-platform.github.io/doc/usage/robotwin-install.html) for installation instructions. It takes about 20 minutes for installation.
-
-# 🤷‍♂️ Tasks Informations
-See [RoboTwin 2.0 Tasks Doc](https://robotwin-platform.github.io/doc/tasks/index.html) for more details.
-
-<p align="center">
-  <img src="./assets/files/50_tasks.gif" width="100%">
-</p>
-
-# 🧑🏻‍💻 Usage 
-
-## Document
-
-> Please Refer to [RoboTwin 2.0 Document (Usage)](https://robotwin-platform.github.io/doc/usage/index.html) for more details.
-
-## Data Collection
-We provide over 100,000 pre-collected trajectories as part of the open-source release [RoboTwin Dataset](https://huggingface.co/datasets/TianxingChen/RoboTwin2.0/tree/main/dataset).
-However, we strongly recommend users to perform data collection themselves due to the high configurability and diversity of task and embodiment setups.
-
-<img src="./assets/files/domain_randomization.png" alt="description" style="display: block; margin: auto; width: 100%;">
-
-## 1. Task Running and Data Collection
-Running the following command will first search for a random seed for the target collection quantity, and then replay the seed to collect data.
-
-```
-bash collect_data.sh ${task_name} ${task_config} ${gpu_id}
-# Example: bash collect_data.sh beat_block_hammer demo_randomized 0
+```text
+.
+├─ data/
+│  └─ README_rawdata.md
+├─ doc/
+│  ├─ finetune_simple_flow.d2
+│  └─ total.d2
+├─ policy/openvla-oft/
+│  ├─ datasets/
+│  │  └─ robotwin_builder.py
+│  ├─ prismatic/vla/datasets/rlds/
+│  │  └─ traj_transforms.py
+│  ├─ vla-scripts/
+│  │  └─ finetune_simple.py
+│  ├─ finetune_aloha.sh
+│  ├─ merge_lora.sh
+│  └─ eval.sh
+└─ README.md
 ```
 
-## 2. Modify Task Config
-☝️ See [RoboTwin 2.0 Tasks Configurations Doc](https://robotwin-platform.github.io/doc/usage/configurations.html) for more details.
+## 环境与算力要求
 
-# 🚴‍♂️ Policy Baselines
-## Policies Support
-[DP](https://robotwin-platform.github.io/doc/usage/DP.html), [ACT](https://robotwin-platform.github.io/doc/usage/ACT.html), [DP3](https://robotwin-platform.github.io/doc/usage/DP3.html), [RDT](https://robotwin-platform.github.io/doc/usage/RDT.html), [PI0](https://robotwin-platform.github.io/doc/usage/Pi0.html), [OpenVLA-oft](https://robotwin-platform.github.io/doc/usage/OpenVLA-oft.html)
+- 操作系统：Linux（推荐 Ubuntu）或等价云环境。
+- Python：3.10（建议 conda 环境）。
+- GPU：训练推荐 **4x RTX 4090 (24GB)**；7B 模型单卡/少卡容易 OOM。
+- 说明：若仅验证流程，训练跑通少量 step（例如 100 step）即可。
 
-[TinyVLA](https://robotwin-platform.github.io/doc/usage/TinyVLA.html), [DexVLA](https://robotwin-platform.github.io/doc/usage/DexVLA.html) (Contributed by Media Group)
+## 面试讲解主线（建议）
 
-[LLaVA-VLA](https://robotwin-platform.github.io/doc/usage/LLaVA-VLA.html) (Contributed by IRPN Lab, HKUST(GZ))
+- **为什么做**：验证 VLA 在双臂 manipulation 任务上的端到端可行性与稳定性。
+- **怎么做**：先做数据闭环，再做训练闭环，最后定位并修复末段失败问题。
+- **难点在哪**：7B 模型显存压力、数据格式对齐、action chunk 监督覆盖不足。
+- **你的贡献**：打通训练链路、完成 FSDP 训练实践、修复 `traj_transforms.py` 末尾样本逻辑。
 
-[GO-1](https://robotwin-platform.github.io/doc/usage/GO1.html) (Contributed by GO-1 Team)
+## 快速开始
 
-Deploy Your Policy: [Guidance](https://robotwin-platform.github.io/doc/usage/deploy-your-policy.html)
+### 1) 安装 RoboTwin 环境
 
-⏰ TODO: G3Flow, HybridVLA, SmolVLA, AVR, UniVLA
+参考官方文档完成 Vulkan 与 RoboTwin 安装：  
+`https://robotwin-platform.github.io/doc/usage/robotwin-install.html`
 
-# 🏄‍♂️ Experiment & LeaderBoard
+示例：
 
-> We recommend that the RoboTwin Platform can be used to explore the following topics: 
-> 1. single - task fine - tuning capability
-> 2. visual robustness
-> 3. language diversity robustness (language condition)
-> 4. multi-tasks capability
-> 5. cross-embodiment performance
+```bash
+conda create -n RoboTwin python=3.10 -y
+conda activate RoboTwin
 
-The full leaderboard and setting can be found in: [https://robotwin-platform.github.io/leaderboard](https://robotwin-platform.github.io/leaderboard).
+git clone https://github.com/Aiclass2026/RoboTwin.git
+cd RoboTwin
 
-# 💽 Pre-collected Large-scale Dataset
-
-Please refer to [RoboTwin 2.0 Dataset - Huggingface](https://huggingface.co/datasets/TianxingChen/RoboTwin2.0/tree/main/dataset).
-
-# 👍 Citations
-If you find our work useful, please consider citing:
-
-<b>RoboTwin 2.0</b>: A Scalable Data Generator and Benchmark with Strong Domain Randomization for Robust Bimanual Robotic Manipulation
-```
-@article{chen2025robotwin,
-  title={Robotwin 2.0: A scalable data generator and benchmark with strong domain randomization for robust bimanual robotic manipulation},
-  author={Chen, Tianxing and Chen, Zanxin and Chen, Baijun and Cai, Zijian and Liu, Yibin and Li, Zixuan and Liang, Qiwei and Lin, Xianliang and Ge, Yiheng and Gu, Zhenyu and others},
-  journal={arXiv preprint arXiv:2506.18088},
-  year={2025}
-}
+pip install -r script/requirements.txt
+bash script/_install.sh
 ```
 
-<b>RoboTwin</b>: Dual-Arm Robot Benchmark with Generative Digital Twins, accepted to <i style="color: red; display: inline;"><b>CVPR 2025 (Highlight)</b></i>
-```
-@InProceedings{Mu_2025_CVPR,
-    author    = {Mu, Yao and Chen, Tianxing and Chen, Zanxin and Peng, Shijia and Lan, Zhiqian and Gao, Zeyu and Liang, Zhixuan and Yu, Qiaojun and Zou, Yude and Xu, Mingkun and Lin, Lunkai and Xie, Zhiqiang and Ding, Mingyu and Luo, Ping},
-    title     = {RoboTwin: Dual-Arm Robot Benchmark with Generative Digital Twins},
-    booktitle = {Proceedings of the Computer Vision and Pattern Recognition Conference (CVPR)},
-    month     = {June},
-    year      = {2025},
-    pages     = {27649-27660}
-}
-```
+### 2) 安装 OpenVLA-oft 依赖
 
-Benchmarking Generalizable Bimanual Manipulation: RoboTwin Dual-Arm Collaboration Challenge at CVPR 2025 MEIS Workshop
-```
-@article{chen2025benchmarking,
-  title={Benchmarking Generalizable Bimanual Manipulation: RoboTwin Dual-Arm Collaboration Challenge at CVPR 2025 MEIS Workshop},
-  author={Chen, Tianxing and Wang, Kaixuan and Yang, Zhaohui and Zhang, Yuhao and Chen, Zanxin and Chen, Baijun and Dong, Wanxi and Liu, Ziyuan and Chen, Dong and Yang, Tianshuo and others},
-  journal={arXiv preprint arXiv:2506.23351},
-  year={2025}
-}
+```bash
+cd policy/openvla-oft
+pip install -e .
+
+pip install packaging ninja
+ninja --version
+pip install "flash-attn==2.5.5" --no-build-isolation
 ```
 
-<b>RoboTwin</b>: Dual-Arm Robot Benchmark with Generative Digital Twins (early version), accepted to <i style="color: red; display: inline;"><b>ECCV Workshop 2024 (Best Paper Award)</b></i>
+### 3) 数据采集
+
+任务列表：`https://robotwin-platform.github.io/doc/tasks/index.html`
+
+```bash
+# 参数：任务名 配置名 渲染GPU id
+bash collect_data.sh beat_block_hammer demo_clean 0
 ```
-@article{mu2024robotwin,
-  title={RoboTwin: Dual-Arm Robot Benchmark with Generative Digital Twins (early version)},
-  author={Mu, Yao and Chen, Tianxing and Peng, Shijia and Chen, Zanxin and Gao, Zeyu and Zou, Yude and Lin, Lunkai and Xie, Zhiqiang and Luo, Ping},
-  journal={arXiv preprint arXiv:2409.02920},
-  year={2024}
-}
+
+可选配置：
+- `demo_clean`：无域随机化
+- `demo_randomized`：有域随机化
+
+配置说明：`https://robotwin-platform.github.io/doc/usage/configurations.html`
+
+### 4) 数据转换（RoboTwin -> RLDS）
+
+```bash
+cd policy/openvla-oft
+
+python preprocess_aloha.py \
+  --dataset_path /path/to/raw/data \
+  --out_base_dir /path/to/oft-processed \
+  --instruction_dir /path/to/instructions
+
+python datasets/robotwin_builder.py \
+  --task_name beat_block_hammer \
+  --data_dir /path/to/oft-processed \
+  --save_path /path/to/oft-rlds
 ```
 
-# 😺 Acknowledgement
+### 5) 启动训练
 
-**Software Support**: D-Robotics, **Hardware Support**: AgileX Robotics, **AIGC Support**: Deemos.
+先在 `finetune_aloha.sh` 中修改模型路径、数据路径和超参数，再运行：
 
-Contact [Tianxing Chen](https://tianxingchen.github.io) if you have any questions or suggestions.
+```bash
+cd policy/openvla-oft
+bash finetune_aloha.sh
+```
 
-# 🏷️ License
-This repository is released under the MIT license. See [LICENSE](./LICENSE) for additional details.
+### 6) 合并 LoRA 权重
+
+```bash
+cd policy/openvla-oft
+bash merge_lora.sh \
+  /path/to/openvla \
+  /path/to/lora_ckpt_dir \
+  /path/to/merged_ckpt_dir
+```
+
+### 7) 评测模型
+
+```bash
+cd policy/openvla-oft
+bash eval.sh beat_block_hammer demo_clean /path/to/merged_or_downloaded_ckpt 0 0 aloha_beat_block_hammer
+```
+
+## 关键修复：轨迹末尾数据保留
+
+### 问题背景
+
+在 action-chunk 训练中，原始实现对轨迹末尾时刻做了裁剪：
+
+```python
+effective_traj_len = traj_len - future_action_window_size
+```
+
+这会导致每条轨迹最后若干时刻无法成为训练锚点，可能削弱末段决策能力。
+
+### 修复方式
+
+文件：`policy/openvla-oft/prismatic/vla/datasets/rlds/traj_transforms.py`
+
+将有效轨迹长度改为全长：
+
+```python
+effective_traj_len = traj_len
+```
+
+在未来动作不足一个完整 chunk 时，索引逻辑会使用最后有效动作补齐（repeat-last 行为），从而保持张量形状与下游接口一致。
+
+## 可视化与文档
+
+- 训练流程与数据形状流：`doc/finetune_simple_flow.d2`
+- 项目整体流程图：`doc/total.d2`
+
+## License
+
+本仓库使用 MIT License，详见 `LICENSE`。
